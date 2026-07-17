@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JOKER-MD | Pair Code Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0d0e12;
+        }
+    </style>
+</head>
+<body class="text-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-gray-900 border border-purple-900/40 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <!-- Glow accents -->
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-600/20 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-600/20 rounded-full blur-3xl"></div>
+
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400 tracking-wider">
+                🃏 JOKER-MD 🃏
+            </h1>
+            <p class="text-xs text-gray-400 mt-2">Generate a Multi-Device Pairing Session ID instantly</p>
+        </div>
+
+        <!-- Form State -->
+        <div id="form-section">
+            <label class="block text-sm font-semibold text-gray-300 mb-2">WhatsApp Phone Number</label>
+            <input type="text" id="phone-input" placeholder="e.g. 2347086057694 (include country code)" 
+                   class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition duration-200">
+            
+            <button id="submit-btn" onclick="requestPairCode()"
+                    class="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition duration-200 transform hover:-translate-y-0.5">
+                Generate Code
+            </button>
+        </div>
+
+        <!-- Loading / Pairing Code State -->
+        <div id="status-section" class="hidden text-center py-4">
+            <!-- Spinner -->
+            <div id="spinner" class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent mb-4"></div>
+            
+            <p id="status-text" class="text-sm text-gray-300 font-medium">Requesting code from WhatsApp servers...</p>
+
+            <!-- Pairing Code Display -->
+            <div id="code-container" class="hidden mt-4">
+                <div class="text-xs text-gray-400 uppercase tracking-widest mb-1">Your Pairing Code</div>
+                <div id="pair-code" class="text-4xl font-black tracking-widest text-purple-400 bg-gray-950 py-3 rounded-xl border border-gray-800 my-2 select-all font-mono">
+                    ---- ----
+                </div>
+                <p class="text-xs text-gray-500 max-w-xs mx-auto mt-2">
+                    Open WhatsApp > Linked Devices > Link a Device > Link with phone number instead, and enter this code.
+                </p>
+            </div>
+        </div>
+
+        <!-- Success Session ID State -->
+        <div id="success-section" class="hidden text-center py-4">
+            <div class="w-12 h-12 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">✓</div>
+            <h3 class="text-lg font-bold text-white mb-2">Connected Successfully!</h3>
+            <p class="text-xs text-gray-400 mb-4">Your Session ID has been sent directly to your WhatsApp. You can also copy it below:</p>
+            
+            <textarea id="session-display" readonly 
+                      class="w-full h-24 bg-gray-950 border border-gray-850 rounded-xl p-3 text-xs font-mono text-purple-300 focus:outline-none select-all"></textarea>
+            
+            <button onclick="resetApp()" class="mt-4 text-xs text-gray-400 hover:text-white underline">
+                Pair another number
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let checkInterval;
+
+        async function requestPairCode() {
+            const phoneInput = document.getElementById('phone-input').value.trim();
+            if (!phoneInput) return alert('Please enter your phone number with country code!');
+
+            const formSection = document.getElementById('form-section');
+            const statusSection = document.getElementById('status-section');
+            const spinner = document.getElementById('spinner');
+            const statusText = document.getElementById('status-text');
+            const codeContainer = document.getElementById('code-container');
+
+            // UI Transitions
+            formSection.classList.add('hidden');
+            statusSection.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/get-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ num: phoneInput })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to fetch code');
+
+                // Display Code
+                spinner.classList.add('hidden');
+                statusText.innerText = "Code received! Enter it on your device now:";
+                codeContainer.classList.remove('hidden');
+                document.getElementById('pair-code').innerText = data.code;
+
+                // Start polling to check when user scans the code
+                pollSessionStatus(data.requestId);
+
+            } catch (err) {
+                alert(err.message);
+                resetApp();
+            }
+        }
+
+        function pollSessionStatus(requestId) {
+            checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/check-session/${requestId}`);
+                    const data = await response.json();
+
+                    if (data.status === 'completed') {
+                        clearInterval(checkInterval);
+                        showSuccess(data.sessionId);
+                    } else if (data.status === 'expired') {
+                        clearInterval(checkInterval);
+                        alert('Session expired or cancelled. Please try again.');
+                        resetApp();
+                    }
+                } catch (e) {
+                    console.error("Checking error:", e);
+                }
+            }, 3000);
+        }
+
+        function showSuccess(sessionId) {
+            document.getElementById('status-section').classList.add('hidden');
+            document.getElementById('success-section').classList.remove('hidden');
+            document.getElementById('session-display').value = sessionId;
+        }
+
+        function resetApp() {
+            clearInterval(checkInterval);
+            document.getElementById('form-section').classList.remove('hidden');
+            document.getElementById('status-section').classList.add('hidden');
+            document.getElementById('success-section').classList.add('hidden');
+            document.getElementById('code-container').classList.add('hidden');
+            document.getElementById('spinner').classList.remove('hidden');
+            document.getElementById('status-text').innerText = "Requesting code...";
+            document.getElementById('phone-input').value = "";
+        }
+    </script>
+</body>
+              </html>
