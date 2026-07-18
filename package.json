@@ -1,16 +1,35 @@
 {
-  "name": "joker-pair-code",
+  "name": "joker-md-pairing-service",
   "version": "1.0.0",
-  "description": "Pair code generator for Joker MD",
+  "description": "Standalone pairing code and Session ID generator web platform for JOKER-MD",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 0"
   },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "pairing-code",
+    "session-generator",
+    "express"
+  ],
+  "author": "Big Boss",
+  "license": "MIT",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
+    "@hapi/boom": "^10.0.1",
+    "awesome-phonenumber": "^5.10.0",
+    "axios": "^1.6.8",
+    "chalk": "^4.1.2",
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "file-type": "^16.5.4",
+    "node-cache": "^5.1.2",
     "pino": "^9.1.0",
     "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
