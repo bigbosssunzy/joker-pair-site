@@ -89,6 +89,9 @@
             // UI Transitions
             formSection.classList.add('hidden');
             statusSection.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            codeContainer.classList.add('hidden');
+            statusText.innerText = "Requesting code from WhatsApp servers...";
 
             try {
                 const response = await fetch('/api/get-code', {
@@ -106,7 +109,7 @@
                 codeContainer.classList.remove('hidden');
                 document.getElementById('pair-code').innerText = data.code;
 
-                // Start polling to check when user scans the code
+                // Start polling to check when user enters code on WhatsApp app
                 pollSessionStatus(data.requestId);
 
             } catch (err) {
@@ -116,6 +119,7 @@
         }
 
         function pollSessionStatus(requestId) {
+            clearInterval(checkInterval);
             checkInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`/api/check-session/${requestId}`);
@@ -148,7 +152,6 @@
             document.getElementById('success-section').classList.add('hidden');
             document.getElementById('code-container').classList.add('hidden');
             document.getElementById('spinner').classList.remove('hidden');
-            document.getElementById('status-text').innerText = "Requesting code...";
             document.getElementById('phone-input').value = "";
         }
     </script>
