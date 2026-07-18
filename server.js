@@ -21,6 +21,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 8000;
 
+// Memory cache to hold completed session data for the frontend polling endpoint
+const completedSessions = {};
+
 // Request Pairing Code Endpoint
 app.post('/api/get-code', async (req, res) => {
     let { num } = req.body;
@@ -55,8 +58,12 @@ app.post('/api/get-code', async (req, res) => {
                     const credsFilePath = path.join(sessionDir, 'creds.json');
                     if (fs.existsSync(credsFilePath)) {
                         const credsData = fs.readFileSync(credsFilePath, 'utf-8');
+                        // Encode the credentials to standard Base64 matching your format
                         const base64Session = Buffer.from(credsData).toString('base64');
                         const finalSessionId = `XPLOADER-BOT:~${base64Session}`;
+
+                        // Store in cache immediately so frontend polling catches it
+                        completedSessions[requestId] = { status: 'completed', sessionId: finalSessionId };
 
                         // Direct message the generated Session ID to the newly linked account
                         const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
@@ -66,9 +73,10 @@ app.post('/api/get-code', async (req, res) => {
                     }
                 } catch (err) {
                     console.error("Session generation error:", err);
+                    completedSessions[requestId] = { status: 'error' };
                 } finally {
                     await delay(5000);
-                    sock.logout();
+                    try { sock.logout(); } catch {}
                     try { rmSync(sessionDir, { recursive: true, force: true }); } catch {}
                 }
             }
@@ -95,18 +103,15 @@ app.post('/api/get-code', async (req, res) => {
 // Endpoint to check link status and fetch Session ID
 app.get('/api/check-session/:requestId', (req, res) => {
     const { requestId } = req.params;
-    const credsFilePath = path.join(__dirname, 'temp_sessions', requestId, 'creds.json');
-    
-    if (fs.existsSync(credsFilePath)) {
-        try {
-            const credsData = fs.readFileSync(credsFilePath, 'utf-8');
-            const base64Session = Buffer.from(credsData).toString('base64');
-            return res.status(200).json({ status: "completed", sessionId: `XPLOADER-BOT:~${base64Session}` });
-        } catch (e) {
-            return res.status(500).json({ status: "error" });
+
+    if (completedSessions[requestId]) {
+        const sessionData = completedSessions[requestId];
+        if (sessionData.status === 'completed' || sessionData.status === 'error') {
+            setTimeout(() => { delete completedSessions[requestId]; }, 15000);
         }
+        return res.status(200).json(sessionData);
     }
-    
+
     const sessionDir = path.join(__dirname, 'temp_sessions', requestId);
     if (fs.existsSync(sessionDir)) {
         return res.status(200).json({ status: "pending" });
@@ -116,5 +121,5 @@ app.get('/api/check-session/:requestId', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Joker Web Pairing Server running on port ${PORT}`);
 });
